@@ -21,20 +21,35 @@
 typedef struct 
 {
 	EFI_HANDLE device;
-    void (* FunctionToRun) (EFI_HANDLE); //tymaczasowe, tu wsadzimy informacje potrzebne do bootowania, miedzy innymi wskaznik na funkcję ktora ma byc wywolana (to jest to ale pewnie zmienia sie jej parametry)
+	CHAR16* path;
+	CHAR16* name;
 } OPERATING_SYSTEM_ENTRY;
 
+typedef struct
+{
+	CHAR16* path;
+	CHAR16* label;
+} LOADER_ENTRY;
 
 //global variables
 EFI_SYSTEM_TABLE *ST;
 EFI_BOOT_SERVICES *BS;
 EFI_HANDLE IH;
+LOADER_ENTRY Loaders[] = {{.path=L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", .label=L"Windows Loader"}, 
+		{.path=L"\\EFI\\ubuntu\\grubx64.efi", .label=L"Ubuntu Loader"}, 
+		{.path=L"\\EFI\\debian\\grubx64.efi", .label=L"Debian Loader"}, 
+		{.path=L"\\EFI\\fedora\\grubx64.efi", .label=L"Fedora Loader"},
+		{.path=L"\\System\\Library\\CoreServices\\boot.efi", .label=L"Mac OSX Loader"},
+		{.path=L"\\shellx64.efi", .label=L"EFI Shell"}};
+
+//constants
+const unsigned int LoadersCount = 6;
 
 //function declarations
 EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait);
 void CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, int key);
-void exitFun(EFI_HANDLE device);
-void LoadWindows(EFI_HANDLE device);
+void exitFun();
+void LoadSystem(OPERATING_SYSTEM_ENTRY sys);
 
 int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, int firstKey);
 
@@ -44,28 +59,30 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
 	ST = SystemTable;
     BS = ST->BootServices;
 	const CHAR16 title[] = {L"\tEFI Bootloader 1.1\n\tAndrzej Podgórski\n\tBartosz Pollok\n"};
-    CHAR16 const* menu[20] = {L"wroc do efi shell\n"};
-    OPERATING_SYSTEM_ENTRY exit;
-    exit.FunctionToRun = exitFun;
-    OPERATING_SYSTEM_ENTRY operatingSystems[20] = {exit};
-    int menuEntriesCount=1;
+	
+    CHAR16 const* menu[20] = {L"0 - wyjscie\n"};
+    OPERATING_SYSTEM_ENTRY operatingSystems[20];
+    int menuEntriesCount=0;
     
     Print(title);
     int numOfLoaders = GetEntries(menu, operatingSystems, menuEntriesCount);
     menuEntriesCount+= numOfLoaders;
-//TODO: pobrac wpisy o systemach i wstawic do menu pod odpowiednie indeksy do jakiejś tablicy pod indeksy takie jak w menu
+    
     int i;
     for (i=0; i< menuEntriesCount; i++)
     {
-        Print(L"%d - %s\n", i, menu[i]);
+        Print(L"%d - %s\n", i+1, menu[i]);
     }
     UINT64 key;
     do 
     {
         ConsoleKeyRead(&key, 1);
     }while (!(key-48 >=0 && key-48 < menuEntriesCount));
-
-    CallMenuEntry(operatingSystems, key-48);
+    
+	if(key-48==0)
+		exitFun();
+	else
+		CallMenuEntry(operatingSystems, key-48);
 
 	return EFI_SUCCESS;
 
@@ -88,59 +105,18 @@ EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait) {
 
 void CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, int key)
 {
-    operatingSystems[key].FunctionToRun(operatingSystems[key].device);
+    LoadSystem(operatingSystems[key]);
 }
-void exitFun(EFI_HANDLE device)
+void exitFun()
 {
     Print(L"Opuszczam program");
 }
 
-void LoadWindows(EFI_HANDLE device)
+void LoadSystem(OPERATING_SYSTEM_ENTRY sys)
 {
 	EFI_HANDLE image;
 	EFI_DEVICE_PATH *path;
-	path = FileDevicePath(device, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi"); 	
-	EFI_STATUS err;
-	BS->LoadImage(FALSE, IH, path, NULL, 0, &image);
-	err=BS->StartImage(image, NULL, NULL); 	
-	if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
-	{ 	
-		Print(L"Blad dostepu do pliku loadera!\n"); 	
-	}
-}
-
-void LoadUbuntu(EFI_HANDLE device)
-{
-	EFI_HANDLE image;
-	EFI_DEVICE_PATH *path;
-	path = FileDevicePath(device, L"\\EFI\\ubuntu\\grubx64.efi"); 	
-	EFI_STATUS err;
-	BS->LoadImage(FALSE, IH, path, NULL, 0, &image);
-	err=BS->StartImage(image, NULL, NULL); 	
-	if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
-	{ 	
-		Print(L"Blad dostepu do pliku loadera!\n"); 	
-	}
-}
-
-void LoadDebian(EFI_HANDLE device)
-{
-	EFI_HANDLE image;
-	EFI_DEVICE_PATH *path;
-	path = FileDevicePath(device, L"\\EFI\\debian\\grubx64.efi"); 	
-	EFI_STATUS err;
-	BS->LoadImage(FALSE, IH, path, NULL, 0, &image);
-	err=BS->StartImage(image, NULL, NULL); 	
-	if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
-	{ 	
-		Print(L"Blad dostepu do pliku loadera!\n"); 	
-	}
-}
-void LoadFedora(EFI_HANDLE device)
-{
-	EFI_HANDLE image;
-	EFI_DEVICE_PATH *path;
-	path = FileDevicePath(device, L"\\EFI\\fedora\\grubx64.efi"); 	
+	path = FileDevicePath(sys.device, sys.path); 	
 	EFI_STATUS err;
 	BS->LoadImage(FALSE, IH, path, NULL, 0, &image);
 	err=BS->StartImage(image, NULL, NULL); 	
@@ -152,61 +128,31 @@ void LoadFedora(EFI_HANDLE device)
 
 int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, int firstKey)
 {
-	int num=0;
+	unsigned int num = 0;
 	EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
-	EFI_HANDLE devices[1000];
-	UINTN l = 1000;
-	BS->LocateHandle(2, &guid, 0, &l, devices);
-	l = l/sizeof(EFI_HANDLE);
-	int i;
-	for (i=0; i<l;i++)
+	UINTN length = 1000;
+	EFI_HANDLE devices[length];
+	BS->LocateHandle(2, &guid, 0, &length, devices);
+	length = length/sizeof(EFI_HANDLE);
+	unsigned int i;
+	for (i = 0; i < length; ++i)
 	{
 		EFI_SIMPLE_FILE_SYSTEM_PROTOCOL * fs;
 		EFI_FILE_PROTOCOL *root;
 		BS->HandleProtocol(devices[i],&guid, (void **) &fs);
 		fs->OpenVolume(fs, &root);
 		EFI_FILE_PROTOCOL * file;
-		EFI_STATUS err;
-		err = root->Open(root,&file, L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", EFI_FILE_MODE_READ, 0ULL);
-		if (err == EFI_SUCCESS)
+		unsigned int j;
+		for(j = 0; j < LoadersCount; ++j)
 		{
-			file->Close(file);
-			OPERATING_SYSTEM_ENTRY sys;
-			sys.FunctionToRun=LoadWindows;
-			sys.device=devices[i];
-			operatingSystems[firstKey+num]=sys;
-			menu[firstKey+num]=L"Microsoft Windows loader";
-			num++;
-		}
-		else if(root->Open(root,&file, L"\\EFI\\ubuntu\\grubx64.efi", EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
-		{
-			file->Close(file);
-			OPERATING_SYSTEM_ENTRY sys;
-			sys.FunctionToRun=LoadUbuntu;
-			sys.device=devices[i];
-			operatingSystems[firstKey+num]=sys;
-			menu[firstKey+num]=L"Ubuntu loader";
-			num++;
-		}
-		else if(root->Open(root,&file, L"\\EFI\\debian\\grubx64.efi", EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
-		{
-			file->Close(file);
-			OPERATING_SYSTEM_ENTRY sys;
-			sys.FunctionToRun=LoadDebian;
-			sys.device=devices[i];
-			operatingSystems[firstKey+num]=sys;
-			menu[firstKey+num]=L"Debian loader";
-			num++;
-		}
-				else if(root->Open(root,&file, L"\\EFI\\fedora\\grubx64.efi", EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
-		{
-			file->Close(file);
-			OPERATING_SYSTEM_ENTRY sys;
-			sys.FunctionToRun=LoadFedora;
-			sys.device=devices[i];
-			operatingSystems[firstKey+num]=sys;
-			menu[firstKey+num]=L"Fedora loader";
-			num++;
+			if(root->Open(root,&file, Loaders[j].path, EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
+			{
+				file->Close(file);
+				OPERATING_SYSTEM_ENTRY sys={.device=devices[i], .path = Loaders[j].path, .name = Loaders[j].label};
+				operatingSystems[firstKey+num]=sys;
+				menu[firstKey+num]=Loaders[j].label;
+				num++;
+			}
 		}
 	}
 	return num;
