@@ -60,9 +60,9 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
     BS = ST->BootServices;
 	const CHAR16 title[] = {L"\tEFI Bootloader 1.1\n\tAndrzej Podgórski\n\tBartosz Pollok\n"};
 	
-    CHAR16 const* menu[20] = {L"0 - wyjscie\n"};
+    CHAR16 const* menu[20] = {L"wyjscie\n"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
-    int menuEntriesCount=0;
+    int menuEntriesCount=1;
     
     Print(title);
     int numOfLoaders = GetEntries(menu, operatingSystems, menuEntriesCount);
@@ -71,7 +71,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
     int i;
     for (i=0; i< menuEntriesCount; i++)
     {
-        Print(L"%d - %s\n", i+1, menu[i]);
+        Print(L"%d - %s\n", i, menu[i]);
     }
     UINT64 key;
     do 
@@ -141,7 +141,7 @@ int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, i
 		EFI_FILE_PROTOCOL *root;
 		BS->HandleProtocol(devices[i],&guid, (void **) &fs);
 		fs->OpenVolume(fs, &root);
-		EFI_FILE_PROTOCOL * file;
+		EFI_FILE_PROTOCOL * file;fs
 		unsigned int j;
 		for(j = 0; j < LoadersCount; ++j)
 		{
