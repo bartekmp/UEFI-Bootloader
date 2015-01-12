@@ -42,9 +42,21 @@ EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait);
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int key);
 EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys);
 EFI_STATUS exitFun();
+EFI_STATUS ClearScreen();
 
 EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *SystemTable)
 {
+	IH=ImageHandle;
+	ST = SystemTable;
+    BS = ST->BootServices;
+    
+	EFI_STATUS err;
+	err=ClearScreen();
+	if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
+	{ 	
+		Print(L"Unable to clear screen!\n");
+	}
+	
 	const CHAR16 asciiLogo[][72]=
 		{{L" ____                 _    _                        _             \n"}, 
 		{L"|  _ \\               | |  | |                      | |            \n"},
@@ -58,12 +70,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
 		Print(asciiLogo[h]);
 	}
 	Print(L"\tEFI Bootloader 1.2\n\tAndrzej Podgórski\n\tBartosz Pollok\n");
-	
-	IH=ImageHandle;
-	ST = SystemTable;
-    BS = ST->BootServices;
-    EFI_STATUS err;
-    	
+	    	
     CHAR16 const* menu[20] = {L"exit"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
     unsigned int menuEntriesCount=1;
@@ -101,6 +108,11 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
 
 	return EFI_SUCCESS;
 
+}
+
+EFI_STATUS ClearScreen()
+{
+	return ST->ConOut->ClearScreen(ST->ConOut);
 }
 
 EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait) {
