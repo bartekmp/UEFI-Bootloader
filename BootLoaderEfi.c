@@ -7,16 +7,6 @@
 
 #define KEYPRESS(keys, scan, uni) ((((UINT64)keys) << 32) | ((scan) << 16) | (uni))
 
-/**
-  as the real entry point for the application.
-
-  @param[in] ImageHandle    The firmware allocated handle for the EFI image.  
-  @param[in] SystemTable    A pointer to the EFI System Table.
-  
-  @retval EFI_SUCCESS       The entry point is executed successfully.
-  @retval other             Some error occurs when executing this entry point.
-
-**/
 // structures
 typedef struct 
 {
@@ -37,7 +27,7 @@ EFI_BOOT_SERVICES *BS;
 EFI_HANDLE IH;
 
 //constants
-const unsigned int LoadersCount = 6;
+const unsigned char LoadersCount = 6;
 const LOADER_ENTRY Loaders[] = 
 		{{ .path=L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", .label=L"Windows Loader" }, 
 		{ .path=L"\\EFI\\ubuntu\\grubx64.efi", .label=L"Ubuntu Loader" }, 
@@ -47,7 +37,7 @@ const LOADER_ENTRY Loaders[] =
 		{ .path=L"\\shellx64.efi", .label=L"EFI Shell" }};
 		
 //function declarations
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int firstKey);
+unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned char firstKey);
 EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait);
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int key);
 EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys);
@@ -62,7 +52,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
 		{L"|  _ <  / _ \\  / _ \\ | __|| |     / _ \\  / _` | / _` | / _ \\| '__|\n"},
 		{L"| |_) || (_) || (_) || |_ | |____| (_) || (_| || (_| ||  __/| |   \n"},
 		{L"|____/  \\___/  \\___/  \\__||______|\\___/  \\__,_| \\__,_| \\___||_|   \n"}};
-    unsigned int h;
+    unsigned char h;
     for(h=0; h < 6; ++h)
     {
 		Print(asciiLogo[h]);
@@ -74,14 +64,14 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
     BS = ST->BootServices;
     EFI_STATUS err;
     	
-    CHAR16 const* menu[20] = {L"wyjscie"};
+    CHAR16 const* menu[20] = {L"exit"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
     unsigned int menuEntriesCount=1;
     
     unsigned int numOfLoaders = GetEntries(menu, operatingSystems, menuEntriesCount);
     menuEntriesCount+= numOfLoaders;
     
-    unsigned int i;
+    unsigned short int i;
     for (i=0; i< menuEntriesCount; i++)
     {
         Print(L"%d - %s\n", i, menu[i]);
@@ -94,7 +84,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
         err=ConsoleKeyRead(&key, 1);
         if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
 		{ 	
-			Print(L"Blad odczytu klawisza!\n"); 	
+			Print(L"Key read error!\n"); 	
 		}
 		
     } while (!(key-48 >=0 && key-48 < menuEntriesCount));
@@ -106,7 +96,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
 	
 	if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
 	{ 	
-		Print(L"Blad dostepu do pliku loadera!\n"); 	
+		Print(L"Loader file access error!\n"); 	
 	}
 
 	return EFI_SUCCESS;
@@ -134,7 +124,7 @@ EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int
 }
 EFI_STATUS exitFun()
 {
-    Print(L"Opuszczam program");
+    Print(L"Exiting program");
     return EFI_SUCCESS;
 }
 
@@ -150,7 +140,7 @@ EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys)
 	return err;
 }
 
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int firstKey)
+unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned char firstKey)
 {
 	unsigned int num = 0;
 	EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
