@@ -115,19 +115,20 @@ EFI_STATUS ClearScreen()
     return ST->ConOut->ClearScreen(ST->ConOut);
 }
 
-EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait) {
+EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait)
+{
 
-        UINTN index;
-        EFI_INPUT_KEY k;
-        EFI_STATUS err;
-        BS->WaitForEvent( 1, &ST->ConIn->WaitForKey, &index);
+    UINTN index;
+    EFI_INPUT_KEY k;
+    EFI_STATUS err;
+    BS->WaitForEvent( 1, &ST->ConIn->WaitForKey, &index);
 
-        err  = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
-        if (EFI_ERROR(err))
-                return err;
+    err  = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
+    if (EFI_ERROR(err))
+       return err;
 
-        *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
-        return EFI_SUCCESS;
+    *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
+    return EFI_SUCCESS;
 }
 
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int key)
