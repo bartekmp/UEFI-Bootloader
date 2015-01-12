@@ -37,27 +37,27 @@ const LOADER_ENTRY Loaders[] =
         { .path=L"\\shellx64.efi", .label=L"EFI Shell" }};
         
 //function declarations
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned char firstKey);
+unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey);
 EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait);
-EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int key);
+EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key);
 EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys);
 EFI_STATUS exitFun();
 EFI_STATUS ClearScreen();
 
-EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *SystemTable)
+EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable)
 {
-    IH=ImageHandle;
+    IH = ImageHandle;
     ST = SystemTable;
     BS = ST->BootServices;
     
     EFI_STATUS err;
-    err=ClearScreen();
+    err = ClearScreen();
     if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
     {   
         Print(L"Unable to clear screen!\n");
     }
     
-    const CHAR16 asciiLogo[][72]=
+    const CHAR16 asciiLogo[][72] =
         {{L" ____                 _    _                        _             \n"}, 
         {L"|  _ \\               | |  | |                      | |            \n"},
         {L"| |_) |  ___    ___  | |_ | |      ___    __ _   __| |  ___  _ __ \n"},
@@ -65,7 +65,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
         {L"| |_) || (_) || (_) || |_ | |____| (_) || (_| || (_| ||  __/| |   \n"},
         {L"|____/  \\___/  \\___/  \\__||______|\\___/  \\__,_| \\__,_| \\___||_|   \n"}};
     unsigned char h;
-    for(h=0; h < 6; ++h)
+    for(h = 0; h < 6; ++h)
     {
         Print(asciiLogo[h]);
     }
@@ -73,13 +73,13 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
             
     CHAR16 const* menu[20] = {L"exit"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
-    unsigned int menuEntriesCount=1;
+    unsigned int menuEntriesCount = 1;
     
     unsigned int numOfLoaders = GetEntries(menu, operatingSystems, menuEntriesCount);
-    menuEntriesCount+= numOfLoaders;
+    menuEntriesCount += numOfLoaders;
     
     unsigned short int i;
-    for (i=0; i< menuEntriesCount; i++)
+    for (i = 0; i< menuEntriesCount; i++)
     {
         Print(L"%d - %s\n", i, menu[i]);
     }
@@ -88,7 +88,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
     
     do 
     {
-        err=ConsoleKeyRead(&key, 1);
+        err = ConsoleKeyRead(&key, 1);
         if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
         {   
             Print(L"Key read error!\n");    
@@ -96,10 +96,10 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE  *Sys
         
     } while (!(key-48 >=0 && key-48 < menuEntriesCount));
     
-    if(key-48==0)
-        err=exitFun();
+    if(key-48 == 0)
+        err = exitFun();
     else
-        err=CallMenuEntry(operatingSystems, key-48);
+        err = CallMenuEntry(operatingSystems, key-48);
     
     if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
     {   
@@ -117,21 +117,20 @@ EFI_STATUS ClearScreen()
 
 EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait)
 {
-
     UINTN index;
     EFI_INPUT_KEY k;
     EFI_STATUS err;
-    BS->WaitForEvent( 1, &ST->ConIn->WaitForKey, &index);
+    BS->WaitForEvent(1, &ST->ConIn->WaitForKey, &index);
 
-    err  = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
+    err = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
     if (EFI_ERROR(err))
-       return err;
+        return err;
 
     *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
     return EFI_SUCCESS;
 }
 
-EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned int key)
+EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key)
 {
     return LoadSystem(operatingSystems[key]);
 }
@@ -144,23 +143,23 @@ EFI_STATUS exitFun()
 EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys)
 {
     EFI_HANDLE image;
-    EFI_DEVICE_PATH *path;
+    EFI_DEVICE_PATH* path;
     EFI_STATUS err;
     path = FileDevicePath(sys.device, sys.path);    
     BS->LoadImage(FALSE, IH, path, NULL, 0, &image);
     
-    err=ClearScreen();
+    err = ClearScreen();
     if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
     {   
         Print(L"Unable to clear screen!\n");
     }
     
-    err=BS->StartImage(image, NULL, NULL);  
+    err = BS->StartImage(image, NULL, NULL);  
 
     return err;
 }
 
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingSystems, unsigned char firstKey)
+unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey)
 {
     unsigned int num = 0;
     EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
@@ -171,20 +170,20 @@ unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY * operatingS
     unsigned int i;
     for (i = 0; i < length; ++i)
     {
-        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL * fs;
-        EFI_FILE_PROTOCOL *root;
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
+        EFI_FILE_PROTOCOL* root;
         BS->HandleProtocol(devices[i],&guid, (void **) &fs);
         fs->OpenVolume(fs, &root);
-        EFI_FILE_PROTOCOL * file;
+        EFI_FILE_PROTOCOL* file;
         unsigned int j;
         for(j = 0; j < LoadersCount; ++j)
         {
             if(root->Open(root,&file, Loaders[j].path, EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
             {
                 file->Close(file);
-                OPERATING_SYSTEM_ENTRY sys={.device=devices[i], .path = Loaders[j].path, .name = Loaders[j].label};
-                operatingSystems[firstKey+num]=sys;
-                menu[firstKey+num]=Loaders[j].label;
+                OPERATING_SYSTEM_ENTRY sys = {.device=devices[i], .path = Loaders[j].path, .name = Loaders[j].label};
+                operatingSystems[firstKey+num] = sys;
+                menu[firstKey+num] = Loaders[j].label;
                 num++;
             }
         }
