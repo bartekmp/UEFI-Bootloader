@@ -6,7 +6,7 @@ UEFI-Bootloader recognizes all EFI-enabled, 64-bit:
 * Ubuntu
 * Debian
 * Fedora
-* Mac OSX
+* Mac OSX,
 systems installed on hard disk and places them in a selection list.
 User may choose desired system to boot by simply pressing a proper digit (ASCII order) and then the system will be loaded.
 UEF-Bootloader doesn't recognize any other systems than listed before.
