@@ -38,7 +38,7 @@ const LOADER_ENTRY Loaders[] =
         
 //function declarations
 unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey);
-EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait);
+EFI_STATUS ConsoleKeyRead(UINT64* key, BOOLEAN wait, char* gotInput);
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key);
 EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys);
 EFI_STATUS exitFun();
@@ -84,18 +84,18 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* Syst
         Print(L"%d - %s\n", i, menu[i]);
     }
     
-    UINT64 key;
-    
+    UINT64 key = (menuEntriesCount > 0 ? 1 : 0);
+    char gotInput = 0;
     do 
     {
-        err = ConsoleKeyRead(&key, 1);
+        err = ConsoleKeyRead(&key, 1, &gotInput);
         if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
         {   
             Print(L"Key read error!\n");    
         }
+        Print(L"%d %d", gotInput, key);
         
-    } while (!(key-48 >=0 && key-48 < menuEntriesCount));
-    
+    } while (!(key-48 >=0 && key-48 < menuEntriesCount) && !gotInput);
     if(key-48 == 0)
         err = exitFun();
     else
@@ -115,18 +115,42 @@ EFI_STATUS ClearScreen()
     return ST->ConOut->ClearScreen(ST->ConOut);
 }
 
-EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait)
+EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait, char* gotInput)
 {
+    UINT64 entries = *key;
     UINTN index;
     EFI_INPUT_KEY k;
     EFI_STATUS err;
-    BS->WaitForEvent(1, &ST->ConIn->WaitForKey, &index);
+    char counter = 5;
+    EFI_EVENT timer;
+    BS->CreateEvent(EVT_TIMER, 0, NULL, NULL, &timer);
+    BS->SetTimer(timer, TimerPeriodic, 10000000);
+    EFI_EVENT events[2] = {ST->ConIn->WaitForKey, timer};
+    //BS->WaitForEvent(2, events, &index);
+    do
+    {   
+        BS->WaitForEvent(2, events, &index);    
+        if(index == 0)
+        {
+            err = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
+            if (EFI_ERROR(err))
+                return err;
 
-    err = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
-    if (EFI_ERROR(err))
-        return err;
-
-    *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
+            *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
+            *gotInput = 1;            
+            Print(L"\n");  
+            return EFI_SUCCESS;
+        }
+        else
+        {
+            *key = entries;
+            *gotInput = 1;
+            Print(L"%d...", counter--);
+            //BS->SetTimer(timer, TimerRelative, 10000000);
+        }
+    } while(counter > 0);
+    BS->SetTimer(timer, TimerCancel, 10000000);
+    Print(L"end\n");  
     return EFI_SUCCESS;
 }
 
