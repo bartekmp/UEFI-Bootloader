@@ -6,6 +6,7 @@
 #include <Library/DevicePathLib.h>
 
 #define KEYPRESS(keys, scan, uni) ((((UINT64)keys) << 32) | ((scan) << 16) | (uni))
+#define EFI_TIMER_PERIOD_SECONDS(Seconds) MultU64x32((UINT64)(Seconds), 10000000)
 
 // structures
 typedef struct 
@@ -21,14 +22,22 @@ typedef struct
     CHAR16* label;
 } LOADER_ENTRY;
 
+typedef struct
+{
+    char timeout;
+    unsigned int entries;
+    OPERATING_SYSTEM_ENTRY* systems;
+} CALLBACK_CONTEXT;
+
 //global variables
 EFI_SYSTEM_TABLE *ST;
 EFI_BOOT_SERVICES *BS;
 EFI_HANDLE IH;
 
 //constants
+const char timeout = 5;
 const unsigned char LoadersCount = 6;
-const LOADER_ENTRY Loaders[] = 
+const LOADER_ENTRY Loaders[] = // well-known system loaders to find
         {{ .path=L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi", .label=L"Windows Loader" }, 
         { .path=L"\\EFI\\ubuntu\\grubx64.efi", .label=L"Ubuntu Loader" }, 
         { .path=L"\\EFI\\debian\\grubx64.efi", .label=L"Debian Loader" }, 
@@ -38,12 +47,16 @@ const LOADER_ENTRY Loaders[] =
         
 //function declarations
 unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey);
-EFI_STATUS ConsoleKeyRead(UINT64* key, BOOLEAN wait, char* gotInput);
-EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key);
-EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys);
-EFI_STATUS exitFun();
+
+EFI_STATUS ConsoleKeyRead(UINT64* key, BOOLEAN wait); // reads one key pressed by user
+EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key); // calls LoadSystem
+EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys); // loads system selected by user
+EFI_STATUS ExitBootloader();
 EFI_STATUS ClearScreen();
 
+VOID EFIAPI TimerCallback(EFI_EVENT event, void* context); // timer callback procedure
+
+//MAIN
 EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* SystemTable)
 {
     IH = ImageHandle;
@@ -51,6 +64,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* Syst
     BS = ST->BootServices;
     
     EFI_STATUS err;
+    
     err = ClearScreen();
     if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
     {   
@@ -69,7 +83,7 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* Syst
     {
         Print(asciiLogo[h]);
     }
-    Print(L"\tEFI Bootloader 1.2\n\tAndrzej Podgórski\n\tBartosz Pollok\n");
+    Print(L"\tEFI Bootloader 1.2\n");
             
     CHAR16 const* menu[20] = {L"exit"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
@@ -84,20 +98,38 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* Syst
         Print(L"%d - %s\n", i, menu[i]);
     }
     
-    UINT64 key = (menuEntriesCount > 0 ? 1 : 0);
-    char gotInput = 0;
+    EFI_EVENT timer;
+    if(menuEntriesCount > 1)
+    {
+        CALLBACK_CONTEXT context = {timeout, menuEntriesCount, operatingSystems};
+        
+        err = BS->CreateEventEx(EVT_TIMER | EVT_NOTIFY_SIGNAL, TPL_CALLBACK, &TimerCallback, &context, NULL, &timer);
+        if(err == EFI_INVALID_PARAMETER)    
+            Print(L"Invalid parameters for timer creation\n");        
+         
+        err = BS->SetTimer(timer, TimerPeriodic, EFI_TIMER_PERIOD_SECONDS(1));
+        if (err==EFI_INVALID_PARAMETER)
+            Print(L"Invalid parameters for SetTimer\n");
+    }
+    else
+    {
+        Print(L"No operating systems found!\n");
+    }
+    
+    UINT64 key;
     do 
     {
-        err = ConsoleKeyRead(&key, 1, &gotInput);
+        err = ConsoleKeyRead(&key, 1);
+        BS->CloseEvent(timer);
         if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
         {   
             Print(L"Key read error!\n");    
         }
-        Print(L"%d %d", gotInput, key);
         
-    } while (!(key-48 >=0 && key-48 < menuEntriesCount) && !gotInput);
+    } while (!(key-48 >=0 && key-48 < menuEntriesCount));
+    
     if(key-48 == 0)
-        err = exitFun();
+        err = ExitBootloader();
     else
         err = CallMenuEntry(operatingSystems, key-48);
     
@@ -115,50 +147,50 @@ EFI_STATUS ClearScreen()
     return ST->ConOut->ClearScreen(ST->ConOut);
 }
 
-EFI_STATUS ConsoleKeyRead(UINT64 *key, BOOLEAN wait, char* gotInput)
+EFI_STATUS ConsoleKeyRead(UINT64* key, BOOLEAN wait)
 {
-    UINT64 entries = *key;
     UINTN index;
     EFI_INPUT_KEY k;
     EFI_STATUS err;
-    char counter = 5;
-    EFI_EVENT timer;
-    BS->CreateEvent(EVT_TIMER, 0, NULL, NULL, &timer);
-    BS->SetTimer(timer, TimerPeriodic, 10000000);
-    EFI_EVENT events[2] = {ST->ConIn->WaitForKey, timer};
-    //BS->WaitForEvent(2, events, &index);
-    do
-    {   
-        BS->WaitForEvent(2, events, &index);    
-        if(index == 0)
-        {
-            err = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
-            if (EFI_ERROR(err))
-                return err;
+    BS->WaitForEvent(1, &ST->ConIn->WaitForKey, &index);
 
-            *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
-            *gotInput = 1;            
-            Print(L"\n");  
-            return EFI_SUCCESS;
+    err = ST->ConIn->ReadKeyStroke(ST->ConIn, &k);
+    if (EFI_ERROR(err))
+        return err;
+
+    *key = KEYPRESS(0, k.ScanCode, k.UnicodeChar);
+    return EFI_SUCCESS;
+}
+
+VOID EFIAPI TimerCallback(EFI_EVENT event, void* context)
+{
+    CALLBACK_CONTEXT* ctx = (CALLBACK_CONTEXT*)context;
+    Print(L"%d...", ctx->timeout--);
+    if(ctx->timeout < 0)
+    {
+        EFI_STATUS err;
+        Print(L"\n");
+        if(ctx->entries > 1)
+        {
+            err = CallMenuEntry(ctx->systems, 1);
+            if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) 
+            {   
+                Print(L"Loader file access error!\n");  
+            }
         }
         else
         {
-            *key = entries;
-            *gotInput = 1;
-            Print(L"%d...", counter--);
-            //BS->SetTimer(timer, TimerRelative, 10000000);
+            err = ExitBootloader();
         }
-    } while(counter > 0);
-    BS->SetTimer(timer, TimerCancel, 10000000);
-    Print(L"end\n");  
-    return EFI_SUCCESS;
+    }
 }
 
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key)
 {
+    Print(L"\nLoading %s", operatingSystems[key].name);
     return LoadSystem(operatingSystems[key]);
 }
-EFI_STATUS exitFun()
+EFI_STATUS ExitBootloader()
 {
     Print(L"Exiting EFI BootLoader");
     return EFI_SUCCESS;
@@ -196,7 +228,7 @@ unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSy
     {
         EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
         EFI_FILE_PROTOCOL* root;
-        BS->HandleProtocol(devices[i],&guid, (void **) &fs);
+        BS->HandleProtocol(devices[i], &guid, (void **) &fs);
         fs->OpenVolume(fs, &root);
         EFI_FILE_PROTOCOL* file;
         unsigned int j;
