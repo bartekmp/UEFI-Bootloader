@@ -6,7 +6,7 @@ UEFI-Bootloader recognizes all EFI-enabled, 64-bit:
 * Ubuntu
 * Debian
 * Fedora
-* Mac OSX,
+* Mac OSX
 
 
 systems installed on hard disk and places them in a selection list.
