@@ -3,6 +3,7 @@
 #include <Library/UefiLib.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/SimpleFileSystem.h>
+#include <Guid/FileSystemInfo.h>
 #include <Library/DevicePathLib.h>
 
 #define KEYPRESS(keys, scan, uni) ((((UINT64)keys) << 32) | ((scan) << 16) | (uni))
@@ -14,6 +15,8 @@ typedef struct
     EFI_HANDLE device;
     CHAR16* path;
     CHAR16* name;
+    CHAR16* label;
+    UINT64 size;
 } OPERATING_SYSTEM_ENTRY;
 
 typedef struct
@@ -46,7 +49,7 @@ const LOADER_ENTRY Loaders[] = // well-known system loaders to find
         { .path=L"\\shellx64.efi", .label=L"EFI Shell" }};
         
 //function declarations
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey);
+unsigned int GetEntries(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey);
 
 EFI_STATUS ConsoleKeyRead(UINT64* key, BOOLEAN wait); // reads one key pressed by user
 EFI_STATUS CallMenuEntry(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned int key); // calls LoadSystem
@@ -85,17 +88,17 @@ EFI_STATUS EFIAPI UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE* Syst
     }
     Print(L"\tEFI Bootloader 1.2\n");
             
-    CHAR16 const* menu[20] = {L"exit"};
     OPERATING_SYSTEM_ENTRY operatingSystems[20];
     unsigned int menuEntriesCount = 1;
     
-    unsigned int numOfLoaders = GetEntries(menu, operatingSystems, menuEntriesCount);
+    unsigned int numOfLoaders = GetEntries(operatingSystems, menuEntriesCount);
     menuEntriesCount += numOfLoaders;
     
     unsigned short int i;
-    for (i = 0; i< menuEntriesCount; i++)
+    Print(L"0 - exit\n");
+    for (i = 1; i< menuEntriesCount; i++)
     {
-        Print(L"%d - %s\n", i, menu[i]);
+        Print(L"%d - %s on filesystem with label \"%s\" and size %dMB \n", i, operatingSystems[i].name, operatingSystems[i].label, operatingSystems[i].size>>20);
     }
     
     EFI_EVENT timer;
@@ -215,10 +218,11 @@ EFI_STATUS LoadSystem(OPERATING_SYSTEM_ENTRY sys)
     return err;
 }
 
-unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey)
+unsigned int GetEntries(OPERATING_SYSTEM_ENTRY* operatingSystems, unsigned char firstKey)
 {
     unsigned int num = 0;
     EFI_GUID guid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+    EFI_GUID fsi_guid = EFI_FILE_SYSTEM_INFO_ID;
     UINTN length = 1000;
     EFI_HANDLE devices[length];
     BS->LocateHandle(2, &guid, 0, &length, devices);
@@ -228,18 +232,28 @@ unsigned int GetEntries(const CHAR16** menu, OPERATING_SYSTEM_ENTRY* operatingSy
     {
         EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
         EFI_FILE_PROTOCOL* root;
+	UINTN buffer_size = 200;
+	UINTN * buffer[200];
         BS->HandleProtocol(devices[i], &guid, (void **) &fs);
         fs->OpenVolume(fs, &root);
-        EFI_FILE_PROTOCOL* file;
+	EFI_STATUS deviceInfoTaken = root->GetInfo(root,&fsi_guid, &buffer_size,(void *) buffer);
+	EFI_FILE_PROTOCOL* file;
         unsigned int j;
         for(j = 0; j < LoadersCount; ++j)
         {
             if(root->Open(root,&file, Loaders[j].path, EFI_FILE_MODE_READ, 0ULL) == EFI_SUCCESS)
             {
                 file->Close(file);
-                OPERATING_SYSTEM_ENTRY sys = {.device=devices[i], .path = Loaders[j].path, .name = Loaders[j].label};
+		CHAR16 * label=L"<no label>";
+		UINT64 size=0;
+		if (deviceInfoTaken == EFI_SUCCESS)
+		{
+			EFI_FILE_SYSTEM_INFO * fi = (EFI_FILE_SYSTEM_INFO *) buffer;
+			size = fi->VolumeSize;
+			label = fi->VolumeLabel;
+		}
+                OPERATING_SYSTEM_ENTRY sys = {.device=devices[i], .path = Loaders[j].path, .name = Loaders[j].label, .label=label, .size=size};
                 operatingSystems[firstKey+num] = sys;
-                menu[firstKey+num] = Loaders[j].label;
                 num++;
             }
         }
