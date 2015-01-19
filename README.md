@@ -15,6 +15,6 @@ UEF-Bootloader doesn't recognize any other systems than listed before.
 ## Building:
 You are ought to use UDK2014 (EDK2) project to build UEFI-Bootloader. It may be compiled in 64 bits.
 #### Authors:
-Andrzej "andi9310" Podgórski,
-Bartosz "bartekmp" Pollok
+andi9310,
+bartekmp
 
